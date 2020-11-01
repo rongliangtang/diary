@@ -1,9 +1,14 @@
 package com.example.diary;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Gravity;
@@ -13,7 +18,6 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +27,7 @@ public class MainActivity extends AppCompatActivity {
     private String TAG = "MainActivity";
     private List<diary> diaryList = new ArrayList<>();
     private Boolean footOnly = false;   //用来判断是否为listView添加过foot，我们只在listView中foot添加一次TextView
+    private MyDatabaseHelper dbHelper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,7 +47,8 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    //这是使用onStar()来加载listView，因为要让编写日记界面返回主界面能刷新
+    //这是使用onResume()来加载listView，有部分遮挡，所以用resume，返回这个活动的时候是从resume的时候开始执行，
+    //因为要让编写日记界面返回主界面能刷新
     @Override
     protected void onStart() {
         super.onStart();
@@ -69,7 +75,7 @@ public class MainActivity extends AppCompatActivity {
             footOnly = true;
         }
 
-        //为每个item设置监听点击时间，获取到点击item的position
+        //为每个item设置监听点击事件，获取到点击item的position
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener(){
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
@@ -82,6 +88,17 @@ public class MainActivity extends AppCompatActivity {
                 startActivity(intent_edit);
             }
         });
+
+        //为item设置长按监听事件，弹出对话框"是否删除"
+        listView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
+            @Override
+            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
+                Log.d(TAG, "onItemLongClick: click");
+                showConfirm(position);
+                return true;
+            }
+        });
+
 
     }
 
@@ -114,24 +131,86 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initDiarys() {
+        //获取sqlite实例
+        dbHelper = new MyDatabaseHelper(this, "Diarys1.db", null, 1);
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        // 查询Book表中所有的数据
+        Cursor cursor = db.query("Diarys", null, null, null, null, null, "createTime desc");
+        if (cursor.moveToFirst()) {
+            do {
+                // 遍历Cursor对象，取出数据并打印
+                int diaryId = cursor.getInt(cursor.getColumnIndex("diaryId"));
+                String title = cursor.getString(cursor.getColumnIndex("title"));
+                String content = cursor.getString(cursor.getColumnIndex("content"));
+                String author = cursor.getString(cursor.getColumnIndex("author"));
+                String showTime = cursor.getString(cursor.getColumnIndex("showTime"));
+
+//                Log.d("MainActivity", "diaryId is " + diaryId);
+//                Log.d("MainActivity", "title is " + title);
+//                Log.d("MainActivity", "content is " + content);
+//                Log.d("MainActivity", "author is " + author);
+//                Log.d("MainActivity", "showTime is " + showTime);
+
+                diary diary = new diary(diaryId,showTime,title);
+                diaryList.add(diary);
+
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+
+
+
+
         Log.d(TAG, "initDiarys have refreshed");
 
-        for (int i = 0;i < 1;i++){
-            diary diary1 = new diary(1,"2020-10-24 周六","title1");
-            diaryList.add(diary1);
+//        for (int i = 0;i < 1;i++){
+//            diary diary1 = new diary(1,"2020-10-24 周六","title1");
+//            diaryList.add(diary1);
+//
+//            diary diary2 = new diary(2,"2020-10-24 周六","title2");
+//            diaryList.add(diary2);
+//
+//            diary diary3 = new diary(3,"2020-10-24 周六","title3");
+//            diaryList.add(diary3);
+//
+//            diary diary4 = new diary(4,"2020-10-24 周六","title4");
+//            diaryList.add(diary4);
+//
+//            diary diary5 = new diary(5,"2020-10-24 周六","title5");
+//            diaryList.add(diary5);
+//        }
+    }
 
-            diary diary2 = new diary(2,"2020-10-24 周六","title2");
-            diaryList.add(diary2);
+    private void showConfirm(final int position) {
+        AlertDialog.Builder confirm = new AlertDialog.Builder(this);
 
-            diary diary3 = new diary(3,"2020-10-24 周六","title3");
-            diaryList.add(diary3);
+        //确认
+        confirm.setPositiveButton("确定",new DialogInterface.OnClickListener(){
 
-            diary diary4 = new diary(4,"2020-10-24 周六","title4");
-            diaryList.add(diary4);
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                diary diary = diaryList.get(position);
+                Integer diaryId = diary.getDiaryId();
+                //从数据库中删除
+                SQLiteDatabase db = dbHelper.getWritableDatabase();
+                db.delete("Diarys", "diaryId=?", new String[] {diaryId.toString()});
+                onStart();  //因为AlertDialog不属于活动，所以不影响mainActivity的生命周期，故需要在这里再执行一下start
+            }
+        });
 
-            diary diary5 = new diary(5,"2020-10-24 周六","title5");
-            diaryList.add(diary5);
-        }
+        //取消
+        confirm.setNegativeButton("取消",new DialogInterface.OnClickListener(){
+
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                //不进行操作
+            }
+        });
+
+        confirm.setMessage("你确认要删除日记吗？");
+        confirm.setTitle("提示");
+        confirm.show();
+
     }
 
 }

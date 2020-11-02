@@ -1,23 +1,34 @@
 package com.example.diary;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.net.wifi.aware.DiscoverySession;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
+import android.net.Uri;
 import android.os.Bundle;
-import android.os.Handler;
+import android.text.Editable;
+import android.text.SpannableString;
+import android.text.style.ImageSpan;
 import android.util.Log;
+import android.view.KeyEvent;
+import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.FileNotFoundException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
-import java.util.Date;
 
 public class WriteActivity extends AppCompatActivity {
 
@@ -79,8 +90,6 @@ public class WriteActivity extends AppCompatActivity {
                 editText_content.setSelection(content.length());  //设置光标显示在内容的最后（待实现）
             }
 
-
-
         }
 
     }
@@ -106,13 +115,6 @@ public class WriteActivity extends AppCompatActivity {
         String content = editText_content.getText().toString();
         SharedPreferences pref = getSharedPreferences("author",MODE_PRIVATE);
         String author = pref.getString("name","佚名");
-
-        //如果title和content有一个为空则不进行更新和保存，思考这样的友好性，如果输入很多不小心错碰返回怎么办（待实现）
-        if (title.equals("") || content.equals("")){
-            Log.d(TAG, "onDestroy: return");
-            Toast.makeText(WriteActivity.this, "此次编辑不保存(标题和内容不能为空)", Toast.LENGTH_SHORT).show();
-            return;
-        }
 
         //退出当前活动的时候保存内容
         if (isNew){
@@ -146,7 +148,36 @@ public class WriteActivity extends AppCompatActivity {
 
     }
 
-    //匹配
+    //如果title和content有一个为空则不进行更新和保存，返回的时候弹出确认框让用户确认
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        EditText editText_title = findViewById(R.id.title);
+        EditText editText_content = findViewById(R.id.content);
+        String title = editText_title.getText().toString();
+        String content = editText_content.getText().toString();
+
+        if (keyCode==KeyEvent.KEYCODE_BACK && (title.equals("") || content.equals(""))){
+            AlertDialog.Builder builder=new AlertDialog.Builder(this);
+            builder.setTitle("提示：");
+            builder.setMessage("您的日记还没写完呢？");
+
+            //设置确定按钮
+            builder.setNegativeButton("确定", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    finish();
+                }
+            });
+            //设置取消按钮
+            builder.setPositiveButton("取消",null);
+            //显示提示框
+            builder.show();
+        }
+
+        return super.onKeyDown(keyCode, event);
+    }
+
+    //匹配周几
     public static String getWeek(int week) {
         //制作表：
         String[] arr = {"周日", "周一", "周二", "周三", "周四", "周五", "周六"};
